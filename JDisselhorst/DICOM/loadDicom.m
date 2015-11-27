@@ -23,8 +23,14 @@ warning('DISSELHORST:Disclaimer','THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHO
 
 
 if nargin==0
+    try 
+        directory = getenv('JDisselhorstFolder');
+    catch
+        directory = cd;
+    end
+    
     if exist('uipickfiles','file') % uipickfiles from the fileexchange is available -> use it.
-        selected = uipickfiles('Type',{'*.ima','DICOM (*.ima)';'*.dcm','DICOM (*.dcm)';'*','All files (*.*)'},'Output','struct');
+        selected = uipickfiles('FilterSpec',directory,'Type',{'*.ima','DICOM (*.ima)';'*.dcm','DICOM (*.dcm)';'*','All files (*.*)'},'Output','struct');
         if isstruct(selected)
             files = {};
             for N = 1:length(selected)
@@ -39,10 +45,11 @@ if nargin==0
             files = [];
         end
     else
-        directory = uigetdir;
+        directory = uigetdir(directory);
         if ~directory
-            directory = cd;
+            error('No folder selected!');
         end
+        setenv('JDisselhorstFolder',directory);
         files = getFilesFromDir(directory);
     end
 else
@@ -161,6 +168,17 @@ function [IMG,HDR] = sortImages(IMG,HDR)
                 HDR = HDR2;
                 IMG = IMG2;
             end
+%         elseif regexpi(HDR{1}.Manufacturer,'Bruker')
+%             warning('Caution: This is Bruker Paravision Dicom. Sorting may very well be incorrect!');
+%             TheIndex = Instance-(IPPind-1)*T;
+%             IMG2 = zeros(x,y,z,T);
+%             HDR2 = cell(z,T);
+%             for ii = 1:N
+%                 IMG2(:,:,IPPind(ii),TheIndex(ii)) = IMG(:,:,ii);
+%                 HDR2(IPPind(ii),TheIndex(ii)) = HDR(ii);
+%             end
+%             HDR = HDR2;
+%             IMG = IMG2;
         elseif T>1
             IMG2 = zeros(x,y,z,T);
             HDR2 = cell(z,T);

@@ -1,16 +1,21 @@
 % This is a script to load HASTE files and output an ADC-map as DICOM.
 %
 % 1. All haste files should be in one folder!
-folder = cd;
+try 
+    folder = getenv('JDisselhorstFolder');
+catch
+    folder = cd;
+end
 % 2. Set the folder:
 folder = uigetdir(folder,'Select folder with HASTE-dicoms. All files should be in this folder (not subfolders)!');
 if ~folder, error('Please select a folder!'); end
+setenv('JDisselhorstFolder',folder);
 
 % 3. Load the haste images:
 [imageMatrix,header] = loadDicom(folder);
 
 % 4. Calculate the ADC:
-results = calculateDiffusion(imageMatrix,HDR); clc;
+results = calculateDiffusion(imageMatrix,header); clc;
 
 % 5. Make the units micrometer^2/s.
 ADC = int16(results*1000); 
@@ -34,6 +39,7 @@ if pathName
         HDR.SeriesInstanceUID = DcmID;
         HDR.ImageType='DERIVED\PRIMARY\M\ND\ADC';
         HDR.ProtocolName='ADC';
+        HDR.SeriesDescription = 'ADC';
         outFile = fullfile(pathName,sprintf('%s_%03.0f.%s',fileName,N,ext));
         if exist(outFile,'file') && ~overwrite
             choice = questdlg(sprintf('%s already exists. Overwrite?',outFile),'File exists','Yes','All','No','No');
@@ -50,6 +56,9 @@ if pathName
     if ~startover
         finished = 1;
     end
+else
+    fprintf('No ouput files written\n');
+    finished = 1;
 end
 end
 fprintf('DONE!\n');

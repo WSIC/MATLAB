@@ -6,8 +6,8 @@ function volume = createModelHolder(type,writeFile)
 % Usage: volume = createModelHolder(type,writeFile)
 %
 % Input (all input is optional):
-%   o type:         Which holder? Can be 'mouse' [default] or 'rat'
-%                   [currently only mouse is supported] 
+%   o type:         Which holder? Can be 'mouse' [default], 'smallmouse' or
+%                   'rat' [currently only mouse holders are supported] 
 %   o writeFile:    Should the model be written to a Inveon CT image file?
 %                   false [default], or true
 %
@@ -32,6 +32,9 @@ function volume = createModelHolder(type,writeFile)
     end
     switch lower(type)
         case 'mouse'
+            SIUID = dicomuid;
+            Desc = 'Fraunhofer Regular Holder';
+            StudyID = '1.3.6.1.4.1.9590.100.198518051';
             fprintf('Creating mouse holder model...');
             % Total volume: 160x70x35 mm, voxelsize: 0.1 mm
             volume = false(1600,700,350);
@@ -63,7 +66,7 @@ function volume = createModelHolder(type,writeFile)
             volume(:,:,1:20) = repmat(~pattern,[1,1,20]);
 
             % Sides:
-            % 4 mm wide, with rounded edged of radius is 3 mm
+            % 4 mm wide, with rounded edged of radius 3 mm
             volume(176:1425,:,51:end) = true;
             pattern = (sqrt((abs(x)-555).^2 + (abs(y)-280).^2)<=30);
             pattern(246:1355,41:660) = true;
@@ -100,7 +103,81 @@ function volume = createModelHolder(type,writeFile)
             pattern = repmat(reshape(pattern,[1600,1,350]),[1,700,1]);
             pattern(:,1:400,:) = false;
             volume(pattern) = false;
+        case 'smallmouse'
+            SIUID = dicomuid';
+            Desc = 'Fraunhofer Small Holder';
+            StudyID = '1.3.6.1.4.1.9590.100.198518052';
+            fprintf('Creating mouse holder model...');
+            % Total volume: 160x70x35 mm, voxelsize: 0.1 mm
+            volume = false(1600,700,350);
+
+            % Bottom:
+            % 5 mm thick. 
+            % Circles of 6.6 mm diameter. 27 mm in y, and 69 and 71 mm in x.
+            % Corners are cut off at 2 mm
+            [y,x] = meshgrid(-349.5:349.5,-799.5:799.5);
+            pattern = sqrt((x-690).^2 + (y-270).^2)<=33;
+            pattern = pattern | (sqrt((x-710).^2 + (y-270).^2)<=33);
+            pattern(x>=690 & x<=710 & y>=237 & y<=303) = true;
+            pattern = pattern | fliplr(pattern);
+            pattern = pattern | flipud(pattern);
+            for ii = 1:19
+                pattern([1:ii, 1601-ii:end],20-ii) = true;
+                pattern([1:ii, 1601-ii:end],681+ii) = true;
+            end
+            volume(:,:,1:50) = repmat(~pattern,[1,1,50]);
+
+
+            % Pattern in the bottom:
+            % circle in the center (6 mm diameter)
+            % two circles at 25 and 55 mm from the center
+            pattern = pattern | (sqrt(x.^2+y.^2)<=30);
+            pattern = pattern | (sqrt((x+250).^2 + y.^2)<=20);
+            pattern = pattern | (sqrt((x+550).^2 + y.^2)<=20);
+            pattern(abs(y)<=20 & x<=-250 & x>=-550) = true;
+            volume(:,:,1:20) = repmat(~pattern,[1,1,20]);
+
+            % Sides:
+            % 4 mm wide, with rounded edged of radius 3 mm
+            volume(176:1425,101:600,51:end) = true;
+            pattern = (sqrt((abs(x)-555).^2 + (abs(y)-180).^2)<=30);
+            pattern(246:1355,141:560) = true;
+            pattern(216:1385,171:530) = true;
+            cutout = repmat(pattern,[1 1 350]);
+            cutout(:,:,1:50) = false;
+            x = repmat(x,[1 1 30]);
+            y = repmat(y,[1 1 30]);
+            z = repmat(reshape(-29.5:-0.5,[1 1 30]),[1600,700,1]);
+            pattern = sqrt((abs(x)-555).^2 + (abs(y)-180).^2 + z.^2)<=30;
+            pattern( (sqrt((abs(x)-555).^2 + z.^2)<=30) & abs(y)<=180) = true;
+            pattern( (sqrt((abs(y)-180).^2 + z.^2)<=30) & abs(x)<=555) = true;
+            pattern( abs(x)<=555 & abs(y)<=180 ) = true;
+            cutout(:,:,51:80) = pattern;
+            volume(cutout) = false;
+
+            % Rods in x direction
+            [z,y] = meshgrid(0.5:349.5,-349.5:349.5);
+            pattern = (sqrt((z-120).^2 + (y+230).^2)<=6);
+            pattern = pattern | (sqrt((z-280).^2 + (y+230).^2)<=6);
+            pattern = pattern | flipud(pattern);
+            pattern = repmat(reshape(pattern,[1,700,350]),[1600,1,1]);
+            pattern(476:1125,:,:) = false;
+            volume(pattern) = false;
+
+            % Rods in y direction
+            [z,x] = meshgrid(0.5:349.5,1599.5:-1:0.5);
+            pattern = (sqrt((z-25).^2 + (x-255).^2)<=6);
+            pattern = pattern | (sqrt((z-25).^2 + (x-405).^2)<=6);
+            pattern = pattern | (sqrt((z-25).^2 + (x-555).^2)<=6);
+            pattern = pattern | (sqrt((z-25).^2 + (x-705).^2)<=6);
+            pattern = pattern | (sqrt((z-25).^2 + (x-905).^2)<=6);
+            pattern = pattern | (sqrt((z-25).^2 + (x-1005).^2)<=6);
+            pattern = repmat(reshape(pattern,[1600,1,350]),[1,700,1]);
+            pattern(:,1:400,:) = false;
+            volume(pattern) = false;
         case 'rat'
+            SIUID = '1.3.6.1.4.1.9590.100.1.2.383479136712618621716111271753177360578';
+            Desc = 'Fraunhofer Holder Rat';
             error('Rat holder is not defined yet!');
             %fprintf('Creating rat holder model...');
         otherwise
@@ -124,6 +201,7 @@ function volume = createModelHolder(type,writeFile)
         fwrite(fID,uint8(volume),'uint8');
         fclose(fID);
         headerInfo = headerReader('defaultCT.img.hdr');
+        headerInfo.General.study = Desc;
         headerInfo.General.file_name = fileName2;
         headerInfo.General.x_dimension = size(volume,1); 
         headerInfo.General.y_dimension = size(volume,2);
@@ -131,7 +209,8 @@ function volume = createModelHolder(type,writeFile)
         headerInfo.General.pixel_size_x = 0.1;
         headerInfo.General.pixel_size_y = 0.1;
         headerInfo.General.pixel_size_z = 0.1;
-        headerInfo.General.study_identifier = dicomuid;
+        headerInfo.General.study_identifier = SIUID;
+        headerInfo.General.subject_identifier = 'Fraunhofer Holders';
         headerInfo.General.subject_orientation = 4;
         headerInfo.General.data_type = 1; % 8 bit data.
         headerWriter(headerInfo,[fileName2,'.hdr']);
@@ -146,6 +225,12 @@ function volume = createModelHolder(type,writeFile)
         mfolder = fileparts(mfilename('fullpath')); 
         HDR = dicominfo(fullfile(mfolder,'data','TemplateCTDicom.dcm'));
         [X,Y,Z] = size(volume);
+        HDR.SeriesInstanceUID = SIUID;
+        HDR.SeriesDescription = Desc;
+        HDR.StudyDescription = Desc;
+        HDR.StudyInstanceUID = StudyID;
+        HDR.PatientID = 'FraunhoferHolders';
+        HDR.PatientName.FamilyName = 'Fraunhofer Holders';
         HDR.Width = X;   HDR.Height = Y;
         HDR.Columns = X; HDR.Rows = Y;
         HDR.NumberOfSeriesRelatedInstances = Z;

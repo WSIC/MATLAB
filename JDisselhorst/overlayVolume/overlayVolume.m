@@ -218,7 +218,11 @@ classdef overlayVolume < handle
                     Default = obj.aspectRatio;
                     Default = arrayfun(@num2str, Default/min(Default),'UniformOutput',false);
                     answer = inputdlg({'X:','Y:','Z:'},'Image aspect ratio',1,Default);
-                    answer = str2double(answer); answer = answer/min(answer); setAspectRatio(obj,answer); 
+                    if ~isempty(answer)
+                        answer = str2double(answer); 
+                        answer = answer/min(answer); 
+                        setAspectRatio(obj,answer); 
+                    end
                 case 'backRange'
                     Default = arrayfun(@num2str, obj.backRange,'UniformOutput',false);
                     answer = inputdlg({'Lower bound:','Upper bound:'},'Background display range',1,Default);

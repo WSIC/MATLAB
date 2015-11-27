@@ -253,7 +253,7 @@ function GUI_Config_Template
                      varvalue = strrep(varvalue,'[FILENAME]',currentName);
                      varvalue = strrep(varvalue,'[EXTENSION]',currentExt);
                      
-                     if regexp(varvalue,'[ATTENFILEINFOLDER]')
+                     if regexp(varvalue,'\[ATTENFILEINFOLDER\]')
                          files = dir(fullfile(currentPath,'*.atn'));
                          if isempty(files)
                              [FileN,PathN] = uigetfile({'*.atn';'atten. files (*.atn)';'*.*';'all files (*.*)'},'Select attenuation file',currentPath);

@@ -8,6 +8,11 @@
 %           Optional parameters:
 %           - Downsample:   will load the data with a downsample factor. 
 %                           i.e., 2, 4, 8, 16 (default: 1)
+%                  CAUTION: Downsampling will skip voxels, it will NOT
+%                           interpolate! This, to reduce loading time
+%                           and reduce memory usage. For accurate
+%                           downsampling: use the full matrix, and
+%                           downsample manually afterwards.
 %           - Subsection:   cut out one piece of the matrix 
 %                           [startX,Y,Z,T; endX,Y,Z,T] (default: [1,1,1,1;
 %                           Inf,Inf,Inf,Inf], i.e., everything)
@@ -195,7 +200,7 @@ function [imageMatrix, testImages] = buildMatrix(imageFile,headerInformation,var
     end
 
     function [imageMatrix,testImages] = loadCatFile(imageFile,scanInfo)
-        fprintf('Loading CT .cat file....\n');
+        fprintf('Loading CT .cat file....');
         fID  = fopen(imageFile,'r',scanInfo.endian);
         fseek(fID, scanInfo.ct_header_size, 'bof');
         testImages = fread(fID,scanInfo.x*scanInfo.y*2,scanInfo.datatypefread);
@@ -203,7 +208,7 @@ function [imageMatrix, testImages] = buildMatrix(imageFile,headerInformation,var
         
         imageMatrix = zeros(scanInfo.x, scanInfo.y, scanInfo.z, scanInfo.t, scanInfo.datatypevar);
         for ii = 1:scanInfo.t
-            fprintf('Loading frame %1.0f: ....',ii);
+            fprintf('\nLoading frame %1.0f: ....',ii);
             fseek(fID, -(scanInfo.x*scanInfo.y*scanInfo.z)*(scanInfo.t-ii+1)*scanInfo.bytesize, 'eof');
             for jj = 1:scanInfo.z
                 tempImages = fread(fID,scanInfo.x*scanInfo.y,scanInfo.datatypefread);

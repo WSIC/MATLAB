@@ -2,6 +2,7 @@ function [QR,FV] = QRCodeGenerator(str,quality)
 % QRCODEGENERATOR Creates a QR-Code
 % Input:
 %        o String to be converted to a QR code
+%          [Add line breaks with a char(10)]
 %        o Optional quality parameter (error correction): 1-4
 %          1: Low       (7%)
 %          2: Medium   (15%) [default]

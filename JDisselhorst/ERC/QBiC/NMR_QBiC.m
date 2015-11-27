@@ -1,8 +1,8 @@
 %% Convert NMR Data for use by QBiC...
 
 % Folder that contains all the measurements:
-mainFolder = 'F:\DATA\NMR\ERC\MetaboLiverII\Valerie';
-saveFolder = 'F:\DATA\NMR\ERC\MetaboLiverII\QBiC';
+mainFolder = 'V:\NMR\ERC-09';
+saveFolder = 'V:\NMR\#SendToQBiC';
 c= mkdir(saveFolder);
 
 % Barcode Format:
@@ -55,6 +55,8 @@ for ii = 1:length(meas)
 
     if exist(fullfile(saveFolder,[bars{:},'.mat']),'file') || ...
        exist(fullfile(saveFolder,[bars{:},'.tar']),'file') || ...
+       exist(fullfile(saveFolder,[bars{:},'.csv']),'file') || ...
+       exist(fullfile(saveFolder,[bars{:},'.txt']),'file') || ...
        exist(fullfile(saveFolder,[bars{:},'.png']),'file')
             c = questdlg(sprintf('Barcode (%s) already in use, use anyway?',bars{:}),'Barcode has been used','Yes','No','No');
             if ~strcmpi(c,'yes')
@@ -62,8 +64,19 @@ for ii = 1:length(meas)
             	continue
             end
     end
-        
+    fid = fopen(fullfile(saveFolder,[bars{:},'.txt']),'w+');
+    fprintf(fid,'Filename: %s\r\nAcquisition: %s\r\nComments: "%s"',fullfile(mainFolder,meas(ii).name),...
+        Bruker.General.AcquisitionTime,strjoin(reshape(title,1,[]),'\t'));
+    fclose(fid);
+    spectrum = Bruker.spectrumBruker;
+    spectrum = [Bruker.spectrumAxis; real(spectrum);imag(spectrum)];
+    fid = fopen(fullfile(saveFolder,[bars{:},'.csv']),'w+');
+    fprintf(fid,'PPM,Real,Imag\r\n'); 
+    fprintf(fid,'%2.16f,%i,%i\r\n',spectrum);
+    fclose(fid);
+    %csvwrite(fullfile(saveFolder,[bars{:},'.csv']),[Bruker.spectrumAxis',spectrum]);
+    
     tar(fullfile(saveFolder,[bars{:},'.tar']),fullfile(mainFolder,meas(ii).name));
-    save(fullfile(saveFolder,[bars{:},'.mat']),'Bruker');
+    %save(fullfile(saveFolder,[bars{:},'.mat']),'Bruker');
     copyfile(fullfile(mainFolder,meas(ii).name,'pdata','1','thumb.png'),fullfile(saveFolder,[bars{:},'.png']));
 end; 

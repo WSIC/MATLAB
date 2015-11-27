@@ -33,8 +33,7 @@ function [alignedTarget, transMatrix] = alignDicoms(sourceImg, targetImg, source
 % 
 % Jonathan A. Disselhorst, Werner Siemens Imaging Center
 % Version 2013.01.11
-% Includes code by Alper Yaman, Matlab file exchange ID: <a href =
-% "http://www.mathworks.com/matlabcentral/fileexchange/24277-transform-matrix-between-two-dicom-image-coordinates">#24277</a>. 
+% Includes code by Alper Yaman, Matlab file exchange ID: <a href = "http://www.mathworks.com/matlabcentral/fileexchange/24277-transform-matrix-between-two-dicom-image-coordinates">#24277</a>. 
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY

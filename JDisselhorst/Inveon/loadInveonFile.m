@@ -21,7 +21,7 @@ function [imageMatrix,imageHeader,headerFile] = loadInveonFile(headerFile)
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
 % KIND, EITHER EXPRESSED OR IMPLIED AND IS TO BE USED AT YOUR OWN RISK 
 
-    if nargin<1 || isempty(fileName)
+    if nargin<1 || isempty(headerFile)
         fprintf('Select header file: ...\n');
         PathName = getenv('JDisselhorstFolder');
         [FileName,PathName,FilterIndex] = uigetfile({'*.hdr','Header files (*.hdr)'},'Select Header file',PathName);
@@ -44,8 +44,10 @@ function [imageMatrix,imageHeader,headerFile] = loadInveonFile(headerFile)
                 imageMatrix = double(imageMatrix);
                 CTTestImages = double(CTTestImages);
                 subt = CTTestImages(:,:,1)./CTTestImages(:,:,2);
-                for i = 1:size(imageMatrix,3)
-                    imageMatrix(:,:,i) = imageMatrix(:,:,i)./CTTestImages(:,:,2) - subt;
+                for j = 1:size(imageMatrix,4)
+                    for i = 1:size(imageMatrix,3)
+                        imageMatrix(:,:,i,j) = imageMatrix(:,:,i,j)./CTTestImages(:,:,2) - subt;
+                    end
                 end
                 clear subt k
             end

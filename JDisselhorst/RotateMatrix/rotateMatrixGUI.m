@@ -81,6 +81,8 @@ function rotateMatrixGUI(inputMatrix, varargin)
     ea2 = uicontrol('Style','text','String',sprintf('%1.2f',RotAroundY),'Units','normalized','Position',[0.22 0.37 0.1 0.3],'Parent',panelControls,'HorizontalAlign','Left');
     ea3 = uicontrol('Style','text','String',sprintf('%1.2f',RotAroundX),'Units','normalized','Position',[0.22 0.69 0.1 0.3],'Parent',panelControls,'HorizontalAlign','Left');
     interpolation = uicontrol('Style','popup','String',validInterp,'Value',find(strcmpi(interp,validInterp)),'Units','normalized','Position',[0.27 0.2 0.1 0.3],'Parent',panelControls,'Callback',@changeInterp);
+    uicontrol('Style','pushbutton','String','Rotation','Units','normalized', 'Position',[0.27 0.55 0.05 0.4],'Parent',panelControls,'Callback',@ManualRotationChange);
+    uicontrol('Style','pushbutton','String','Position','Units','normalized', 'Position',[0.32 0.55 0.05 0.4],'Parent',panelControls,'Callback',@ManualPositionChange,'enable','off');
     
     % Controls for slice selection: -------------------------------------
     sb1 = uicontrol('Style','slider','Units','normalized','Position',[0.41 0.05 0.2 0.3], 'Value',sliceX,'min',1,'max',x,'Callback',@changeSlice,'Parent',panelControls, 'SliderStep',[1 5]./x);
@@ -110,6 +112,21 @@ function rotateMatrixGUI(inputMatrix, varargin)
     IP = 0;   % Show an intensity projection? 0 = no.
     changeRotation;   % First view.
     
+    
+    function ManualRotationChange(varargin)
+        RotAroundZ = get(sa1,'Value');
+        RotAroundY = get(sa2,'Value');
+        RotAroundX = get(sa3,'Value');
+        answer = inputdlg({'Around x','Around y','Around z'},'Change angles',1,{num2str(RotAroundX),num2str(RotAroundY),num2str(RotAroundZ)});
+        if ~isempty(answer)
+            drawnow
+            X = str2double(answer{1}); Y = str2double(answer{2}); Z = str2double(answer{3});
+            X = max([0, min([X, 360])]); Y = max([0, min([Y, 360])]); Z = max([0, min([Z, 360])]);
+            set(sa1,'Value',Z); set(sa2,'Value',Y); set(sa3,'Value',X);
+            changeRotation;
+        end
+    end
+
     function changeRotation(varargin)
         RotAroundZ = get(sa1,'Value');
         RotAroundY = get(sa2,'Value');
@@ -136,6 +153,7 @@ function rotateMatrixGUI(inputMatrix, varargin)
         set(eb2,'String',num2str(sliceY));
         set(eb3,'String',num2str(sliceZ));
         showImages;
+        assignin('base','results',outputMatrix);
     end
 
     function showImages(varargin)

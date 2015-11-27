@@ -1,8 +1,9 @@
-function results = calculateDiffusion(imageMatrix,headers,mask,method,bValueRange,verbose)
+function [results,bValues] = calculateDiffusion(imageMatrix,headers,mask,method,bValueRange,verbose)
 % Calculate diffusion parameters from a DWI-MRI using several methods
 %
 % Usage:
-% results = calculateDiffusion(imageMatrix,bValues,mask,method,bValueRange)
+% results = calculateDiffusion(imageMatrix,header,mask,method,...
+%                              bValueRange,verbose)
 %
 % Input:
 % * imageMatrix: Matrix containing measurements at different bValues
@@ -73,7 +74,7 @@ function results = calculateDiffusion(imageMatrix,headers,mask,method,bValueRang
 % 13) Holz et al. Phys Chem Chem Phys. 2000;2:4740–2
 %
 % Jonathan A. Disselhorst, Uni. Tuebingen
-% Last Version: 3 December 2012.
+% Last Version: October 2015.
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
@@ -93,9 +94,11 @@ if iscell(headers) % It will probably be a cell array of dicom headers.
     for ii = 1:N
         try bValues(ii) = headers{1,ii}.Private_0019_100c;
         catch; error('No b-value in ''0019x100c'''); end
-        [~,~,phoenix] = parseSiemensCSAHeader(headers{1,ii});
-        for CoilElem = 1:length(phoenix.asCoilSelectMeas{1}.aFFT_SCALE)
-            FFT(ii,CoilElem) = phoenix.asCoilSelectMeas{1}.aFFT_SCALE{CoilElem}.flFactor;
+        try % this is only for Siemens:
+            [~,~,phoenix] = parseSiemensCSAHeader(headers{1,ii});
+            for CoilElem = 1:length(phoenix.asCoilSelectMeas{1}.aFFT_SCALE)
+                FFT(ii,CoilElem) = phoenix.asCoilSelectMeas{1}.aFFT_SCALE{CoilElem}.flFactor;
+            end
         end
     end
     if any(var(FFT))
@@ -103,6 +106,8 @@ if iscell(headers) % It will probably be a cell array of dicom headers.
         warning('Irregularities detected in FFT scale factor! See variable ''FFT'' and ''bValues'' in workspace.\nFFT: %s\b\b',info)
         assignin('base','FFT',FFT);
         assignin('base','bValues',bValues);
+        results = [];
+        return
     end
 %     if FFT(1)~=4  % Only required in specific cases. J.Disselhorst;
 %         warning('FFT != 4')
@@ -131,11 +136,13 @@ end
 if length(bValues)<2
     error('CalculateDiffusion:InvalidBValues','At least 2 bValues are required!')
 end
+
 totalVox    = prod(matrixSize(1:end-1));
 imageMatrix = reshape(imageMatrix,[totalVox,T]); % reshape data
+[bValues,IX] = sort(bValues); imageMatrix = imageMatrix(:,IX); % sort by bValue;
 bValues     = reshape(bValues,[1,T]);
-if nargin<4                                      % calculation methods is not defined -> standard ADC.
-    method = 'ADClin';
+if nargin<4 || isempty(method)         % calculation methods is not defined -> standard ADC.
+    method = 'ADClinDefault';
     fprintf('Switching to default method: Fully linear ADC\n');
 end
 bValues = bValues/1000;       % We want the output to be micrometer^2/millisecond or 10^-3 mm^2/s; This is not SI, but is quite common in literature.
@@ -160,7 +167,7 @@ if strcmpi(method(1:2),'2S') || strcmpi(method(1:2),'3S')           % First esti
         error('CalculateDiffusion:InvalidBValues','At least 2 bValues are required in the range between 200 and 1000 s/mm^2')
     end
     X = [ones(sum(selection),1), bValues(selection)']; % For the linear fit: first column is for the intercept the second for the slope.
-elseif strcmpi(method,'ADClin')                        % Linear ADC, using all bvalues. [default]
+elseif strcmpi(method,'ADClin') || strcmpi(method,'ADClinDefault')                       % Linear ADC, using all bvalues. [default]
     X = [ones(length(bValues),1), bValues'];           % For the linear fit: first column is for the intercept the second for the slope.
     selection = 1:length(bValues);                     % This is set for the linear fit, used below.
     if nargin>=4                                       % It is not the default, ADClin has been requested by the user.
@@ -184,6 +191,11 @@ end
 % o Some parameter have very broad ranges, because physiological ranges are
 %   unknown to me.
 switch method
+    case 'ADClinDefault'                          % Purely linear fit for ADC.
+        LB = [0, 0];                       % Lower bound for all parameters
+        UB = [5, 4096];                    % Upper bound
+        varNames = {'Apparent diffusion coefficient (ADC) [µm^2/ms]', 'Fitted signal intensity at b=0 (S0) [A.U.]'};          % Names of the parameters.
+        validBRange = [150 600; 300 1000]; % minimal min(b), minimal max(b); maximal min(b), maximal max(b)
     case 'ADClin'                          % Purely linear fit for ADC.
         LB = [0, 0];                       % Lower bound for all parameters
         UB = [5, 4096];                    % Upper bound
@@ -348,7 +360,7 @@ if strcmp(method,'TwoExp') % Some tricks are required to get the correct output 
     nParam = 7;                                      % One parameter was added.
 end
 
-if nargin<4 % No method, default to linear adc, only output the adc.
+if nargin<4 || strcmp(method,'ADClinDefault') % No method, default to linear adc, only output the adc.
     results = reshape(results(:,1),matrixSize(1:end-1));
     fprintf('ADC units: 10^-9 m^2/s (µm^2/ms)\n');
 elseif verbose

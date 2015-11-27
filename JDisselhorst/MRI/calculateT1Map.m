@@ -63,6 +63,7 @@ function [T1, M0] = calculateT1Map(imageMatrix,headers,varargin)
         error('Matrix should be X*Y*Z*t [4D]');
     end
     [x,y,z,t] = size(imageMatrix);
+    
     fprintf('...')
     % Defaults:
     smooth = 0;

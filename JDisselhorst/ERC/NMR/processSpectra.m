@@ -154,6 +154,7 @@ if ~isempty(PQNthresh)
         temp = spectra2(ii,:);
         temp2 = temp./reference;                % quotients
         temp2(reference<PQNthresh) = [];        % remove everything below the treshold.
+        %fprintf('%1.0f: %1.8f\n',ii,median(temp2));
         spectra2(ii,:) = temp/median(temp2);    % divide by the median quotient.
     end
     sp1 = spectra2;
