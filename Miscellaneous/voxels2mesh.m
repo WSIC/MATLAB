@@ -94,8 +94,10 @@ warning('DISSELHORST:Disclaimer','THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHO
 end
 function displayResults(vertices,faces,colors,axs)
 % DISPLAYRESULTS displays the mesh
-    patch('Vertices',vertices,'Faces',faces,'FaceVertexCData',colors,...
+    [cmap,~,ix] = unique(colors,'rows');
+    patch('Vertices',vertices,'Faces',faces,'FaceVertexCData',ix,...
         'EdgeColor','none','FaceColor','flat','FaceAlpha',1,'FaceLighting','flat');
+    colormap(cmap)
     view(3)
     axis equal;
     axis(axs(:))

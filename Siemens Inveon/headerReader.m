@@ -7,10 +7,13 @@
 %       headerReader(fileName);
 %           Will process the headerfile given in 'fileName'
 %
-% J.A. Disselhorst, 2009
-% Univeristy of Twente, Enschede 
-% Radboud University Medical Center, Nijmegen
-% Version 2009.12.01
+% J.A. Disselhorst, 2009-2016
+% Univeristy of Twente, Enschede (NL)
+% Radboud University Medical Center, Nijmegen (NL)
+% Werner Siemens Imaging Center, Tuebingen (DE)
+%
+% Version 2016.01.10
+%      Last version: bug in frames fixed.
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
@@ -37,7 +40,7 @@ catch %#ok<CTCH>
     error(['File: ''' fileName ''' does not exist or cannot be opened.']);
 end
 nLines = size(dataout,1);
-secStr = 'General';
+secStr = 'General'; sectionCount = -1;
 data = struct(secStr,[]);
 
 for ii=1:nLines
@@ -53,10 +56,6 @@ for ii=1:nLines
     key = [];
     if isempty(line)                            % empty line
         status = 0; 
-    elseif strfind(line, 'frame ')              % section found
-        value = lower(line);
-        value = strrep(value,' ','_');
-        status = 1;
     else                                        % key found, perhaps also value.
         pos = find(isspace(line),1,'first');
         if ~isempty(pos)                        % key-value pair found
@@ -73,11 +72,6 @@ for ii=1:nLines
                 end
             end
             
-            %%%%%%%%%%%%%% NEW JD %%%%%%%%%%%%%%
-%             if strcmp(key, 'singles')
-%             end                       
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
             if isempty(key)                     % empty keys are not allowed
                 status = 0;
                 key = [];
@@ -86,6 +80,15 @@ for ii=1:nLines
         else                                    % empty value
             status = 3;
             key = line;
+            if strcmp(key,'end_of_header')
+                if ii<nLines
+                    sectionCount = sectionCount+1;
+                    value = sprintf('frame_%u',sectionCount);
+                    status = 1;
+                else
+                    return
+                end
+            end
         end
     end
 
@@ -101,27 +104,30 @@ for ii=1:nLines
 
         
 
-    if status == 1
+    if status == 1 % new section
         secStr = value;
-        data = setfield(data,secStr,[]);
-    elseif status == 2
+        data.(secStr)=[];
+    elseif status == 2 % new key-value pair
         if ~isfield( eval(['data.' secStr]), key )
-            data = setfield(data,secStr,key,value);
+            data.(secStr).(key) = value;
         else
-        temp = getfield(data,secStr,key);
-        if isnumeric(temp) && isnumeric(value)   %only numbers
-            temp = [temp; value];
-        elseif ~iscell(temp)                    %strings and stuff
-            temp = cellstr(temp);
-            temp(end+1,1) = {value};
-        else
-            temp(end+1,1) = {value};
+            temp = getfield(data,secStr,key);
+            if isnumeric(temp) && isnumeric(value)   %only numbers
+                temp = [temp; value];
+            elseif ~iscell(temp)                    %strings and stuff
+                temp = cellstr(temp);
+                temp(end+1,1) = {value};
+            else
+                temp(end+1,1) = {value};
+            end
+            data.(secStr).(key) = temp;
         end
-        data = setfield(data,secStr,key, temp);
-        end
-    elseif status == 3
-        data = setfield(data,secStr,key,'');
+    elseif status == 3 % empty key
+        data.(secStr).(key) = ' ';
     end
+end
+if isempty(data.(secStr))
+    data = rmfield(data,secStr);
 end
 
 

@@ -74,7 +74,8 @@ function [results,bValues] = calculateDiffusion(imageMatrix,headers,mask,method,
 % 13) Holz et al. Phys Chem Chem Phys. 2000;2:4740–2
 %
 % Jonathan A. Disselhorst, Uni. Tuebingen
-% Version: 2015.10.01
+% Version: 2017.02.02
+% Last change: method is not case sensitive anymore.
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
@@ -106,8 +107,6 @@ if iscell(headers) % It will probably be a cell array of dicom headers.
         warning('Irregularities detected in FFT scale factor! See variable ''FFT'' and ''bValues'' in workspace.\nFFT: %s\b\b',info)
         assignin('base','FFT',FFT);
         assignin('base','bValues',bValues);
-        results = [];
-        return
     end
 %     if FFT(1)~=4  % Only required in specific cases. J.Disselhorst;
 %         warning('FFT != 4')
@@ -190,60 +189,60 @@ end
 %   manually.
 % o Some parameter have very broad ranges, because physiological ranges are
 %   unknown to me.
-switch method
-    case 'ADClinDefault'                          % Purely linear fit for ADC.
+switch lower(method)
+    case 'adclindefault'                          % Purely linear fit for ADC.
         LB = [0, 0];                       % Lower bound for all parameters
         UB = [5, 4096];                    % Upper bound
         varNames = {'Apparent diffusion coefficient (ADC) [µm^2/ms]', 'Fitted signal intensity at b=0 (S0) [A.U.]'};          % Names of the parameters.
         validBRange = [150 600; 300 1000]; % minimal min(b), minimal max(b); maximal min(b), maximal max(b)
-    case 'ADClin'                          % Purely linear fit for ADC.
+    case 'adclin'                          % Purely linear fit for ADC.
         LB = [0, 0];                       % Lower bound for all parameters
         UB = [5, 4096];                    % Upper bound
         varNames = {'Apparent diffusion coefficient (ADC) [µm^2/ms]', 'Fitted signal intensity at b=0 (S0) [A.U.]'};          % Names of the parameters.
         validBRange = [150 600; 300 1000]; % minimal min(b), minimal max(b); maximal min(b), maximal max(b)
-    case 'ADC'
+    case 'adc'
         F = @(p,x) exp(-p(1)*x)*p(2);      % Fit-function
         LB = [0, 0];                       % Lower bound for all parameters
         UB = [5, 4096];                    % Upper bound
         SP = [1, 800];                     % Startpoint for fit
         varNames = {'Apparent diffusion coefficient (ADC) [µm^2/ms]', 'Fitted signal intensity at b=0 (S0) [A.U.]'};          % Names of the parameters.
         validBRange = [150 600; 300 1000]; % minimal min(b), minimal max(b); maximal min(b), maximal max(b)
-    case 'IVIM'
+    case 'ivim'
         F = @(p,x) ( (1-p(3))*exp(-x*p(1)) + p(3)*exp(-x*(p(2)+p(1))) )*p(4);
         LB = [0, 0,    0,    0 ];
         UB = [3, 1000, 1,    4096];
         SP = [1, 10,   0.05, 800];
         varNames = {'Diffusion coefficient (D) [µm^2/ms]','Pseudodiffusion coefficient (D*) [µm^2/ms]','Perfusion fraction (F)','Fitted signal intensity at b=0 (S0) [A.U.]'};
         validBRange = [0 600; 100 1000];
-    case 'NGIVIM'
+    case 'ngivm'
         F = @(p,x) ( (1-p(3))*exp(-x*p(1) + (1/6)*x.^2*p(1).^2*p(4)) + p(3)*exp(-x*p(2))) * p(5);
         LB = [0, 0,    0,    0, 0];
         UB = [3, 1000, 1,    5, 4096];
         SP = [1, 10,   0.05, 1, 800];
         varNames = {'Diffusion coefficient (D) [µm^2/ms]', 'Pseudodiffusion coefficient (D*) [µm^2/ms]', 'Perfusion fraction (F)', 'Kurtosis (K)', 'Fitted signal intensity at b=0 (S0) [A.U.]'};
         validBRange = [0 600; 100 1500];
-    case 'Kurtosis'
+    case 'kurtosis'
         F = @(p,x) exp(-x*p(1) + (1/6)*x.^2*p(1).^2*p(2)) * p(3);
         LB = [0,  0, 0];
         UB = [50, 5, 4096];
         SP = [1,  1, 800];
         varNames = {'Diffusion coefficient (D) [µm^2/ms]', 'Kurtosis (K)', 'Fitted signal intensity at b=0 (S0) [A.U.]'};
         validBRange = [0 600; 500 3000];
-    case 'Stretch'
+    case 'stretch'
         F = @(p,x) exp( -((x*p(1)).^p(2)) )*p(3);
         LB = [0,  0,   0];    
         UB = [10, 1,   4096]; % See bennett et al.
         SP = [1,  0.7, 800];
         varNames = {'Distributed (or Kohlrausch) diffusion coefficient (DDC) [µm^2/ms]','Streching parameter (alpha)','Fitted signal intensity at b=0 (S0) [A.U.]'};
         validBRange = [0 600; 500 5000];
-    case 'TwoExp'
+    case 'twoexp'
         F = @(p,x) exp(-x*p(1))*(p(4)*p(3)) + exp(-x*p(2))*(p(4)*(1-p(3)));
         LB = [0,  0,   0,   0];
         UB = [50, 50,  1,   4096];
         SP = [1,  0.1, 0.5, 300];
         varNames = {'Diffusion coefficient 1 (Da) [µm^2/ms]','Diffusion coefficient 2 (Db) [µm^2/ms]','Scale factor 1 (A)','Scale factor 2 (B)','A/(A+B)'};
         validBRange = [200 1500; 500 1E4];
-    case 'StatModel1'
+    case 'statmodel1'
         F = @(p,x) (((1+erf((p(1)/(p(2)*sqrt(2))) - ((x*p(2))/(sqrt(2)))))/(1+erf(p(1)/(p(2)*sqrt(2))))).*exp(-x*p(1)+0.5*x.^2*p(2).^2))*p(3);
         LB = [0,  0,   0];
         UB = [50, 10,  4096];
@@ -251,7 +250,7 @@ switch method
         varNames = {'Apparent diffusion coefficient (ADC) [µm^2/ms]','Sigma','Fitted signal intensity at b=0 (S0) [A.U.]'};
         validBRange = [0 600; 500 3000]; % I don't really know, this seems ok, given yablonskiy's bValues.
         warning('StatModel1: This model does not converge properly! Possibly related to the error function Erf, use StatModel2 instead. See HELP for details!');
-    case 'StatModel2'
+    case 'statmodel2'
         F = @(p,x) exp(-x*p(1)+0.5*x.^2*p(2).^2)*p(3);
         LB = [0,  0,   0];
         UB = [50, 10,  4096];
@@ -346,7 +345,7 @@ if verbose
     try delete(wbh); end; drawnow; fprintf('\b\b\b\b\b\b\b\b\b\bon completed.\n') % Get rid of the line 'Calculating ...%'
 end
 
-if strcmp(method,'TwoExp') % Some tricks are required to get the correct output for TwoExp
+if strcmpi(method,'twoexp') % Some tricks are required to get the correct output for TwoExp
     temp = results(:,1)<results(:,2);                % For the two exponential model the fast exponential should be 'A', and the slow exponential 'B'
     results2 = results;                              % Copy the results.
     results(temp,1) = results2(temp,2);              % Switch A & B if this condition is not met.
@@ -360,7 +359,7 @@ if strcmp(method,'TwoExp') % Some tricks are required to get the correct output 
     nParam = 7;                                      % One parameter was added.
 end
 
-if nargin<4 || strcmp(method,'ADClinDefault') % No method, default to linear adc, only output the adc.
+if nargin<4 || strcmpi(method,'adclindefault') % No method, default to linear adc, only output the adc.
     results = reshape(results(:,1),matrixSize(1:end-1));
     fprintf('ADC units: 10^-9 m^2/s (µm^2/ms)\n');
 elseif verbose

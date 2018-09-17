@@ -180,5 +180,8 @@ function [binaryImage, ROINames, DCInfo, origImage, origHeader, posMatrix] = loa
         binaryImage = ROIS;
     end
     
+    [ROINames,ix] = sort(ROINames);
+    binaryImage = binaryImage(:,:,:,ix);
+    
     fprintf('Finished.\n');
 end

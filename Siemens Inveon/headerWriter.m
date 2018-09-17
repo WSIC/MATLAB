@@ -10,12 +10,13 @@ function headerWriter(headerInformation,fileName,writeComments)
 %     headerWriter(headerInformation,fileName,false);
 %        As above, but without comments in the header file.
 %
-% J.A. Disselhorst 2009-2014
+% J.A. Disselhorst 2009-2017
 % University of Twente, Enschede (NL)
 % Radboud University Medical Center, Nijmegen (NL)
 % Werner Siemens Imaging Center, Tuebingen (DE)
-% version 2014.02.14. 
-%         Last update: now includes comments.
+% version 2017.09.19. Major changes:
+%         01/2016: new style for the frames (bug in header reader)
+%         02/2014: now includes comments.
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
@@ -50,10 +51,7 @@ fnames = fieldnames(headerInformation);
 % These should be 'General' and optionally several 'frame_#'
 for i = 1:length(fnames)
     groupName = char(fnames(i));
-    if strncmp('frame',groupName,5)
-        fprintf(headerFile,'#\n# Frame number (integer)\n#\n%s\n',strrep(groupName,'_', ' ')); %replace the underscore to a space.
-    end
-
+    if i>2, writeComments = 0; end
     fnames2 = fieldnames(headerInformation.(groupName));
     for j = 1:length(fnames2)
         varName = char(fnames2(j));
@@ -89,6 +87,7 @@ for i = 1:length(fnames)
                 fprintf('Skipping %s\n',varName);
         end
     end
+    fprintf(headerFile,'#\n# End of Header indicator\n#\nend_of_header\n');
     
 end
 
@@ -96,7 +95,8 @@ fclose(headerFile);
 
 
     function commentString = getCommentString(varName)
-        allCommentStrings = {'version','Version of header parameters (float)'; ...
+        allCommentStrings = {'frame','Frame number (integer)';...
+    'version','Version of header parameters (float)'; ...
     'manufacturer','Manufacturer''s name (string)'; ...
     'model','Scanner model number (integer)\n\n     0 - Unknown\n  2000 - Primate\n  2001 - Rodent\n  2002 - microPET2\n  2500 - Focus_220\n  2501 - Focus_120\n  3000 - mCAT\n  3500 - mCATII\n  3600 - Inveon_MM_Std_CT\n  3601 - Inveon_MM_HiRes_Std_CT\n  3602 - Inveon_MM_Std_LFOV_CT\n  3603 - Inveon_MM_HiRes_LFOV_CT\n  4000 - mSPECT\n  5000 - Inveon_Dedicated_PET\n  5001 - Inveon_MM_Platform\n  6000 - MR_PET_Head_Insert  \n  8000 - Tuebingen_PET_MR'; ...
     'modality','Acquisition scanner modality (integer)\n\n  -1 - Unknown acquisition modality\n   0 - PET acquisition\n   1 - CT acquisition\n   2 - SPECT acquisition'; ...
@@ -363,7 +363,8 @@ fclose(headerFile);
     'image_ref_rotation','Image reference rotations (X, Y, Z), in deg, applied to data set (float float float)';...
     'smooth_types','Smooth types (integer)\n  0 - Not known whether it was applied or not, or what method was used\n  1 - 3 Point Boxcar\n  2 - 3 Point Gaussian\n  3 - 3 Point Triangular';...
     'smooth_iter','Number of iterations smoothing is applied (integer)';...
-    'smooth_threshold','Threshold that smoothing is used (in percentage)';};
+    'smooth_threshold','Threshold that smoothing is used (in percentage)';...
+    'delta_elements','Size of ''changing'' dimension at each step (integer)'};
 
 
         number = strcmp(varName,allCommentStrings(:,1));

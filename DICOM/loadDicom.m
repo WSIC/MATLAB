@@ -13,9 +13,10 @@ function [IMG, HDR] = loadDicom(varargin)
 %  - IMG: the image matrix [x,y,z,t]
 %  - HDR: the DICOM-headers [z,t]
 %
-% Version 2014.05.02
+% Version 2017.04.26
 % JA Disselhorst
 % WERNER SIEMENS IMAGING CENTER
+% - update april 2017: experimental support for Siemens MOSAIC DICOMS
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
@@ -35,7 +36,7 @@ if nargin==0
         if isstruct(selected)
             files = {};
             for N = 1:length(selected)
-                if selected(N).isdir;
+                if selected(N).isdir
                     thisfiles = getFilesFromDir(selected(N).name);
                     files = [files; thisfiles];
                 else
@@ -68,7 +69,7 @@ if isempty(files)
 end
 drawnow
 N = length(files);
-fprintf('Loading files:     0%%');
+fprintf('Loading files:   0%%');
 temp = dicominfo(files{1});
 Rows = temp.Rows; Cols = temp.Columns;
 IMG = zeros(Rows,Cols,N);
@@ -94,12 +95,23 @@ for currentFile = 1:N
     end
     IMG(:,:,currentFile) = img;
     HDR{1,currentFile} = hdr;
-    fprintf('\b\b\b\b\b%4.1f%%',currentFile/N*100);
+    fprintf('\b\b\b\b%3.0f%%',currentFile/N*100);
 end
 fprintf('\n');
 
 [IMG,HDR] = sortImages(IMG,HDR);
-
+MOSAICinfo = check4MOSAIC(HDR{1});
+if MOSAICinfo(1)
+    warning('Caution: This is a MOSAIC file, results may be wrong!' );
+    T = size(IMG,4);
+    IMG = reshape(permute(IMG,[2,1,3,4]),[size(IMG,2),size(IMG,1)*T]);
+    IMG = blockproc(IMG,[MOSAICinfo(1),MOSAICinfo(2)],@(x) separateMOSAIC(x));
+    IMG = reshape(IMG,MOSAICinfo(1),MOSAICinfo(2),[],T);
+    IMG = permute(IMG,[2,1,3,4]);
+    for ii = 1:size(HDR,2)
+        HDR{1,ii}.ImagePositionPatient = HDR{1,ii}.ImagePositionPatient+MOSAICinfo(3:5);
+    end
+end
 end
 
 function files = getFilesFromDir(directory)
@@ -169,6 +181,17 @@ function [IMG,HDR] = sortImages(IMG,HDR)
                 HDR = HDR2;
                 IMG = IMG2;
             end
+%         elseif regexpi(HDR{1}.Manufacturer,'Bruker')
+%             warning('Caution: This is Bruker Paravision Dicom. Sorting may very well be incorrect!');
+%             TheIndex = Instance-(IPPind-1)*T;
+%             IMG2 = zeros(x,y,z,T);
+%             HDR2 = cell(z,T);
+%             for ii = 1:N
+%                 IMG2(:,:,IPPind(ii),TheIndex(ii)) = IMG(:,:,ii);
+%                 HDR2(IPPind(ii),TheIndex(ii)) = HDR(ii);
+%             end
+%             HDR = HDR2;
+%             IMG = IMG2;
         elseif T>1
             IMG2 = zeros(x,y,z,T);
             HDR2 = cell(z,T);
@@ -180,5 +203,41 @@ function [IMG,HDR] = sortImages(IMG,HDR)
             IMG = IMG2;
         end
     end    
+end
+
+function MOSAICinfo = check4MOSAIC(hdr)
+    % Much of the information here was found and described by Doug Greve.
+    % http://www.nmr.mgh.harvard.edu/~greve/dicom-unpack 
+    %
+    try
+        if regexp(hdr.ImageType,'MOSAIC')
+            [~,~,MRPhoenix] = parseSiemensCSAHeader(hdr);
+            phaseFOV = MRPhoenix.sSliceArray.asSlice{1}.dPhaseFOV;
+            readFOV = MRPhoenix.sSliceArray.asSlice{1}.dReadoutFOV;
+            pSize = hdr.PixelSpacing;
+            switch hdr.InPlanePhaseEncodingDirection
+                case 'COL'
+                    rows = round(readFOV/pSize(1));
+                    cols = round(phaseFOV/pSize(2));
+                case 'ROW' 
+                    rows = round(phaseFOV/pSize(1)); % height
+                    cols = round(readFOV/pSize(2));  % width
+            end
+            iop = hdr.ImageOrientationPatient;
+            nImages = round([double(hdr.Rows)/rows; double(hdr.Columns)/cols]); % round should not be necessary, but do it anyway.
+            positionShift = ((nImages-1)/2).*[rows; cols].*pSize;
+            positionShift = positionShift(1)*iop(1:3) + positionShift(2)*iop(4:6);
+
+            MOSAICinfo = [cols; rows; positionShift];
+        else
+            MOSAICinfo = 0;
+        end
+    catch
+        MOSAICinfo = 0;
+    end
+end
+
+function block = separateMOSAIC(blockstruct)
+    block = blockstruct.data(:);
 end
 

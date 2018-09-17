@@ -16,8 +16,32 @@ function [csaimage, csaseries, phoenix] = parseSiemensCSAHeader(dicomhdr)
 % JA Disselhorst 2013, Uni.Tuebingen
 % version 2013.04.05
 
-try csaimage  = parsecsa(dicomhdr.(dicomlookup('0029','1010'))'); catch ME, csaimage = []; ME, end
-try csaseries = parsecsa(dicomhdr.(dicomlookup('0029','1020'))'); catch ME, csaseries = []; ME, end
+try 
+    csaimage  = parsecsa(dicomhdr.(dicomlookup('0029','1010'))'); 
+catch
+    try
+        csaimage  = parsecsa(dicomhdr.(dicomlookup('0029','1110'))');
+    catch
+        try
+            csaimage  = parsecsa(dicomhdr.(dicomlookup('0029','1210'))');
+        catch
+            csaimage = [];
+        end
+    end
+end
+try 
+    csaseries = parsecsa(dicomhdr.(dicomlookup('0029','1020'))'); 
+catch
+    try 
+        csaseries = parsecsa(dicomhdr.(dicomlookup('0029','1120'))');
+    catch
+        try
+            csaseries = parsecsa(dicomhdr.(dicomlookup('0029','1220'))');
+        catch
+            csaseries = []; 
+        end
+    end
+end
 try phoenix   = parsephoenix(csaseries); catch ME, phoenix = []; ME, end;
 % Other possibilities:
 % (0x0029, 0x1010), (0x0029, 0x1210), (0x0029, 0x1110),   *10 is image
@@ -40,20 +64,31 @@ try phoenix   = parsephoenix(csaseries); catch ME, phoenix = []; ME, end;
             syngodt = typecast(csa(pos:pos+3),'uint32'); pos = pos+4;
             numSubElems = typecast(csa(pos:pos+3),'uint32'); pos = pos+4;
             pos = pos+4;% pos+80:pos+83  = end of chunk
-            csahdr.(name) = [];
+            try 
+                csahdr.(name) = [];
+            catch
+                name = matlab.lang.makeValidName(strrep(name,'-','_'));
+                csahdr.(name) = [];
+            end
             if numSubElems
-                n = 1;
+                n = 1; numeric = 1; nums = zeros(1,numSubElems)/0;
                 for j = 1:numSubElems
                     lengthOfData = csa(pos:pos+15); pos = pos+16; % is 16 byte long, 1:4 = 9:12 = 13:16
                     lengthOfData = typecast(lengthOfData(1:4),'uint32');
                     if lengthOfData
                         info = csa(pos:pos+lengthOfData-2); % Minus 2, because the last character seems always to be a zero.
                         pos = pos+lengthOfData; pos = pos + ((ceil(double(lengthOfData)/4)*4)-lengthOfData); % padding.
-                        csahdr.(name).(sprintf('elem%03.0f',n)) = strtrim(char(info));
+                        str = strtrim(char(info));
+                        csahdr.(name).(sprintf('elem%03.0f',n)) = str;
+                        [num, status] = str2num(str); % if all elements are numeric, don't output strings in a struct.
+                        if status && numeric, nums(j) = num; end
+                        numeric = numeric & status;
                         n = n + 1;
                     end
                 end
-                if n==2 % there was only one element (i.e., all but one subelement were empty)
+                if numeric && n>=2
+                    csahdr.(name) = nums(1:n-1);
+                elseif n==2 % there was only one element (i.e., all but one subelement were empty)
                     csahdr.(name) = csahdr.(name).elem001;
                 end
             end

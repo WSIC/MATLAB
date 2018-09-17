@@ -24,9 +24,8 @@
 %           - imageMatrix:  the voxel matrix
 %           - CTtestImage:  the dark and light scan, in case of a .cat file
 %
-% version 2016.07.08
-% Last update: includes a warning that subsections and downsampling are not
-% available for sinograms and cat files.
+% version 2016.10.13
+% Last update: Bug fix, in the subsections.
 %
 % J.A. Disselhorst, 2009-2016
 % University of Twente, Enschede (NL)
@@ -84,7 +83,7 @@ function [imageMatrix, testImages] = buildMatrix(imageFile,headerInformation,var
         data_type = headerInformation.General.data_type;
         if data_type>=5, scanInfo.endian = 'b'; else scanInfo.endian = 'l'; end;
         DataTypesFRead = {'int8=>int8','int16=>int16','int32=>int32','float32','float32','int16=>int16','int32=>int32'};
-        DataTypesVar = {'int8','int16','int32','double','int16','int32'};
+        DataTypesVar = {'int8',        'int16',       'int32',       'single', 'single', 'int16',       'int32'};
         DataSizes = [1 2 4 4 4 2 4];
         scanInfo.bytesize = DataSizes(data_type);
         scanInfo.datatypefread = DataTypesFRead{data_type};
@@ -188,7 +187,10 @@ function [imageMatrix, testImages] = buildMatrix(imageFile,headerInformation,var
         
         for ii = scanInfo.subSection(1,4)+1:scanInfo.subSection(2,4)
             fprintf('Loading frame %1.0f: ....',ii);
-            fseek(fID, -(scanInfo.x*scanInfo.y*(scanInfo.z-scanInfo.subSection(1,3))*(scanInfo.t-ii+1))*scanInfo.bytesize, 'eof');
+            framebegin = -(scanInfo.x*scanInfo.y*scanInfo.z*(scanInfo.t-ii+1))*scanInfo.bytesize;
+            slicebegin = scanInfo.x*scanInfo.y*scanInfo.subSection(1,3)*scanInfo.bytesize;
+            fseek(fID, framebegin+slicebegin, 'eof'); %%%%%%%%%%%
+            
             for j = 1:ZSIZE
                 fseek(fID,scanInfo.x*scanInfo.y*(scanInfo.downFactor-1)*scanInfo.bytesize,'cof'); % Skip the downsample part
                 tempImages = fread(fID,scanInfo.x*scanInfo.y,scanInfo.datatypefread);

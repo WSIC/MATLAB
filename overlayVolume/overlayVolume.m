@@ -13,11 +13,12 @@ function overlayVolume(varargin)
 % Optional parameters:
 % - backRange:   display range of background data as [lower, upper]
 %                default: [lowest value in data, highest value]
-% - backMap:     colormap of the background as Nx3 matrix
+% - backMap:     colormap of the background as Nx3 matrix or standard
+%                colormap name (e.g., 'jet')
 %                default: gray(256)
 % - overRange:   display range of overlay data as [lower, upper]
 %                default: [lowest value in data, highest value]
-% - overMap:     colormap of the overlay as Nx3 matrix
+% - overMap:     colormap of the overlay as Nx3 matrix or cmap name
 %                default: jet(256)
 % - alpha:       transparency of the overlay as scalar between 0 and 1
 %                default: 0.5
@@ -25,7 +26,7 @@ function overlayVolume(varargin)
 %                [LO, HI]. That is, all values lower than LO, and all
 %                values higher than HI will not be shown. 
 %                default: []
-% - aspectRatio: aspect ratio of the three dimensions as [x,y,z]
+% - pixelSize:   pixel size of the three dimensions as [x,y,z]
 %                default: [1 1 1]
 % - title:       Adds a name to the windows [char array]
 %
@@ -35,7 +36,7 @@ function overlayVolume(varargin)
 % VOL2 = (VOL1>20).*rand(size(VOL1));     % create a random overlay
 % OVERLAYVOLUME(VOL1,VOL2,'alpha',0.2);   % show volumes, alpha=0.2
 % OVERLAYVOLUME(VOL1,VOL2,'backMap',bone(256),'overMap',hot(64));
-% OVERLAYVOLUME(VOL1,'aspectRatio',[1 1 5]);
+% OVERLAYVOLUME(VOL1,'pixelSize',[1 1 5]);
 % 
 % Acknowledgement:
 % - "ct3"        by "tripp",      FileExchange ID: #32173
@@ -44,23 +45,28 @@ function overlayVolume(varargin)
 % J.A. Disselhorst
 % Werner Siemens Imaging Center, http://www.preclinicalimaging.org/
 % University of Tuebingen, Germany.
-% Version: 2.16.9.12 (2016.09.12)
+% Version: 2.17.0911 (9 September 2017)
 % Changelog: 
-% 2016.09.12: supports saving of ROIs to workspace.
 % 2016.06.22: supports integer input.
+% 2016.09.12: supports saving of VOIs to workspace.
+% 2017.03.17: changed from aspect ratio to pixel size.
+% 2017.04.27: colormaps: added parula, better input handling of cmaps.
+% 2017.07.05: supports loading VOIs, saving VOIs is improved. Also...
+%             ... no more error when adjusting contrast while drawing VOI.
+% 2017.07.24: bug-fix: no more error when plotting without VOIs present.
+% 2017.07.25: bug-fix: loading VOIs will allways make unique names.
+% 2017.09.11: the title can be changed from gui.
+%             the sizes of background and overlay are checked.
+%
 %
 % TODO:
-% - ROI LOAD
 % - BETTER INPUT PARSING
-%   - CHECK IF THE BACKGROUND AND OVERLAY ARE THE SAME SIZE
-%   - CHANGE GUI ACCORDING TO COLORMAP INPUTS
-%   - ACCEPT COLORMAP NAMES AS COLORMAP
 %
 % Disclaimer:
 % THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
 % KIND, EITHER EXPRESSED OR IMPLIED AND IS TO BE USED AT YOUR OWN RISK 
 
-if nargin<1, error('At least 1 input argument required!'); end
+if nargin<1, help('overlayVolume'); error('At least 1 input argument required!'); end
 vs = []; % variables
 hs = []; % handles
 ds = []; % data
@@ -72,7 +78,7 @@ resizeFigure;
 
     
     function createFigure()
-        vs.figTitle     = 'overlayVolume v2.16.9.12; J.A. Disselhorst (2014-2016)'; % Default Name;
+        vs.figTitle     = 'overlayVolume v2.17.0911; J.A. Disselhorst (2014-2017)'; % Default Name;
         vs.figPos       = [100,100,1366,768];            % Position of the figure.
         vs.menuColor    = [0.8, 0.5, 0.3];               % Color of the menu
         vs.buttonColor  = [100 150 190]/255;             % Color of the buttons
@@ -104,7 +110,7 @@ resizeFigure;
         hs.imgPanel  = uipanel('Parent',hs.fig,'BackgroundColor',vs.menuColor,'Units','pixels','Position',[0 0 10 10],'BorderType','none');
         for ii = 1:3
             hs.subImgPanel(ii) = uipanel('Parent',hs.imgPanel,'BorderType','line','HighlightColor',vs.borderColors(vs.activeView(ii)+1,:),'BackgroundColor',vs.imageColor,'Units','normalized','Position',vs.subImgPos(ii,:,vs.activeLayout),'BorderWidth',2);
-            hs.subImgAxes(ii)  = axes('Parent',hs.subImgPanel(ii),'Position',[0 0 1 1]);  %#ok<LAXES>
+            hs.subImgAxes(ii)  = axes('Parent',hs.subImgPanel(ii),'Position',[0 0 1 1]);
             hs.subImgImage(ii) = image(1:3,1:3,ones([3,3,3],'uint8')*50,'CDataMapping','scaled','Parent',hs.subImgAxes(ii));
             set(hs.subImgAxes(ii),'DataAspectRatio',[1 1 1]); % This has to be done *after* the image has been initialized.
             hold(hs.subImgAxes(ii),'on');
@@ -130,8 +136,9 @@ resizeFigure;
     end
 
     function setMenuVariables()
-        cmaps = {'autumn','bone','colorcube','cool','copper','flag','gray','hot','hsv','jet','lines','pink','prism','spring','summer','white','winter'};
-        
+        cmaps = {'gray','parula','jet','hsv','hot','cool','spring','summer','autumn','winter','bone','copper','pink','lines','colorcube','prism','flag','custom'};
+        try parula(20); catch, cmaps(2) = []; end % Older MATLAB version do not have parula --> remove.
+                
         vs.iconPath = fullfile(fileparts(mfilename('fullpath')),'Icons');
         vs.buttons = struct('Parent',{},'ID',{},'String',{},'Icon',{},'Position',{},'Style',{},'Enabled',{},'Value',{},'Function',{},'Color',{});
         
@@ -139,9 +146,10 @@ resizeFigure;
         addMenuItem(hs.ctrlMenu,'layout2','','view2.png',[50,10],'togglebutton','on',0,@changeLayout,{2},vs.buttonColor);
         addMenuItem(hs.ctrlMenu,'layout3','','view3.png',[90,10],'togglebutton','on',0,@changeLayout,{3},vs.buttonColor);
         addMenuItem(hs.ctrlMenu,'layout4','','view4.png',[130,10],'togglebutton','on',0,@changeLayout,{4},vs.buttonColor);
-        addMenuItem(hs.ctrlMenu,'cross','','cross.png',[10,50],'togglebutton','on',1,@changeCrosshairs,{},vs.buttonColor);
-        addMenuItem(hs.ctrlMenu,'aspect','','aspect.png',[50,50],'pushbutton','on',0,@changeAspectRatio,{},vs.buttonColor);
-        addMenuItem(hs.ctrlMenu,'saveimg','','photo.png',[90,50],'pushbutton','on',1,@saveImages,{},vs.buttonColor);
+        addMenuItem(hs.ctrlMenu,'chtitle','','title.png',[10,50],'pushbutton','on',0,@changeTitle,{},vs.buttonColor);
+        addMenuItem(hs.ctrlMenu,'cross','','cross.png',[50,50],'togglebutton','on',1,@changeCrosshairs,{},vs.buttonColor);
+        addMenuItem(hs.ctrlMenu,'aspect','','aspect.png',[90,50],'pushbutton','on',0,@changePixelSize,{},vs.buttonColor);
+        addMenuItem(hs.ctrlMenu,'saveimg','','photo.png',[130,50],'pushbutton','on',0,@saveImages,{},vs.buttonColor);
         addMenuItem(hs.backMenu,'bbback', '','bb.png',[10,10],'pushbutton','on',0,@changeFrame,{1,-Inf},vs.buttonColor);
         addMenuItem(hs.backMenu,'bback',  '','b.png',[50,10],'pushbutton','on',0,@changeFrame,{1,-1},vs.buttonColor);
         addMenuItem(hs.backMenu,'fback',  '','f.png',[90,10],'pushbutton','on',0,@changeFrame,{1,1},vs.buttonColor);
@@ -152,8 +160,11 @@ resizeFigure;
         addMenuItem(hs.overMenu,'ffover', '','ff.png',[130,10],'pushbutton','on',1,@changeFrame,{2,Inf},vs.buttonColor);
         addMenuItem(hs.backMenu,'lbcmap', 'Colormap: ',[],[10,40,72,16],'text','on',0,[],{},vs.menuColor);
         addMenuItem(hs.overMenu,'locmap', 'Colormap: ',[],[10,40,72,16],'text','on',0,[],{},vs.menuColor);
-        addMenuItem(hs.backMenu,'bcmap',  cmaps,[],[66,40,100,20],'popupmenu','on',7,@changeColormap,{1},'w');
-        addMenuItem(hs.overMenu,'ocmap',  cmaps,[],[66,40,100,20],'popupmenu','on',10,@changeColormap,{0},'w');
+        
+        ix = find(~cellfun('isempty',regexpi(cmaps,vs.backMapName)),1); if isempty(ix), ix = 1; end
+        addMenuItem(hs.backMenu,'bcmap',  cmaps,[],[66,40,100,20],'popupmenu','on',ix,@changeColormap,{1},'w');
+        ix = find(~cellfun('isempty',regexpi(cmaps,vs.overMapName)),1); if isempty(ix), ix = 2; end
+        addMenuItem(hs.overMenu,'ocmap',  cmaps,[],[66,40,100,20],'popupmenu','on',ix,@changeColormap,{0},'w');
         addMenuItem(hs.backMenu,'lbrange','Range: ',[],[10,65,35,16],'text','on',0,[],{},vs.menuColor);
         addMenuItem(hs.backMenu,'brangeb',sprintf('%g',vs.backRange(1)),[],[50,65,55,20],'edit','on',0,@changeRange,{1,1},'w');
         addMenuItem(hs.backMenu,'brangee',sprintf('%g',vs.backRange(2)),[],[110,65,55,20],'edit','on',0,@changeRange,{1,2},'w');
@@ -171,7 +182,7 @@ resizeFigure;
         addMenuItem(hs.ctrlMenu,'ROIlist',{'<NEW>'},[],[90,102,76,20],'popupmenu','on',1,@roiSelect,{},'w');
         addMenuItem(hs.ctrlMenu,'ROIplot','','plot.png',[10,140],'pushbutton','on',1,@plotROIs,{},vs.buttonColor);
         addMenuItem(hs.ctrlMenu,'ROIsave','','save.png',[50,140],'pushbutton','on',1,@saveROIs,{},vs.buttonColor);
-        addMenuItem(hs.ctrlMenu,'ROIload','','load.png',[90,140],'pushbutton','off',1,@loadROIs,{},vs.buttonColor);
+        addMenuItem(hs.ctrlMenu,'ROIload','','load.png',[90,140],'pushbutton','on',1,@loadROIs,{},vs.buttonColor);
         addMenuItem(hs.ctrlMenu,'ROItrash','','trash.png',[130,140],'pushbutton','on',1,@trashROIs,{},vs.buttonColor);
         
     end
@@ -225,6 +236,13 @@ resizeFigure;
         refreshButtons;
         resizeFigure;
     end
+    function changeTitle(varargin)
+        temp = inputdlg('New title: ','Change the title',1,{vs.figTitle});
+        if ~isempty(temp)
+            vs.figTitle = temp{1};
+            set(hs.fig,'Name',vs.figTitle);
+        end
+    end
     function changeCrosshairs(varargin)
         if get(varargin{1},'Value')
             set(hs.subImgPointer,'LineStyle','-');
@@ -243,9 +261,23 @@ resizeFigure;
         selected = get(varargin{1},'value');
         vs.buttons(varargin{3}).Value = selected;
         if varargin{4} % backmap
-            vs.backMap = eval([vs.buttons(varargin{3}).String{selected} '(256)']);
+            try
+                vs.backMap = eval([vs.buttons(varargin{3}).String{selected} '(256)']);
+            catch % --> this is custom
+                vs.backMap = flipud(gray(256));
+            end
         else           % overmap
-            vs.overMap = eval([vs.buttons(varargin{3}).String{selected} '(256)']);
+            try
+                vs.overMap = eval([vs.buttons(varargin{3}).String{selected} '(256)']);
+            catch
+                % Fire color map
+                c = [0 0 0; .4 .14 .67; 1 0 0; 1 1 0; 1 1 1];
+                x = [0, .2, .4, .8, 1];
+                cmap = interp1(x,c,0:1/255:1);
+                vs.overMap = interp1(x,c,0:1/255:1);
+                % Red-blue:
+                %vs.overMap = interp1([0 0.5 1],[1 0 0; 1 1 1; 0 0 1],[0:1/255:1]);
+            end
         end
         updateImages;
     end
@@ -274,13 +306,15 @@ resizeFigure;
         vs.alpha = alpha;
         updateImages;
     end
-    function changeAspectRatio(varargin)
-        Default = vs.aspectRatio;
-        Default = arrayfun(@num2str, Default/min(Default),'UniformOutput',false);
-        answer = inputdlg({'X:','Y:','Z:'},'Image aspect ratio',1,Default);
+    function changePixelSize(varargin)
+        Default = vs.pixelSize;
+        Default = arrayfun(@num2str, Default,'UniformOutput',false);
+        answer = inputdlg({'X:','Y:','Z:'},'Image voxel size',1,Default);
         if ~isempty(answer)
             answer = str2double(answer); 
-            answer = answer/min(answer); 
+            vs.pixelSize = answer;
+            answer = 1./answer;
+            answer = answer/min(answer);
             vs.aspectRatio = answer;
             for ii = 1:3
                 set(hs.subImgAxes(ii),'position',[0 0 1 1],'DataAspectRatio',...
@@ -300,24 +334,61 @@ resizeFigure;
         p.addOptional('overVol',[],@(x)ndims(x)>=2);
         p.addParamValue('backRange',[],@(x)length(x)==2&x(1)<x(2));
         p.addParamValue('overRange',[],@(x)length(x)==2&x(1)<x(2));
-        p.addParamValue('backMap',gray(256),@(x)isnumeric(x)&ismatrix(x)&size(x,2)==3)
-        p.addParamValue('overMap',jet(256),@(x)isnumeric(x)&ismatrix(x)&size(x,2)==3)
+        p.addParamValue('backMap','gray',@(x)(isnumeric(x)&ismatrix(x)&size(x,2)==3)|(ischar(x)))
+        p.addParamValue('overMap','hot',@(x)(isnumeric(x)&ismatrix(x)&size(x,2)==3)|(ischar(x)))
         p.addParamValue('maskRange',[-Inf Inf],@(x)length(x)==2&x(1)<x(2));
         p.addParamValue('alpha',0.5,@(x)x>=0&x<=1);
-        p.addParamValue('aspectRatio',[1 1 1],@(x)length(x)==3);
+        p.addParamValue('pixelSize',[1 1 1],@(x)length(x)==3);
         p.addParamValue('title',vs.figTitle,@ischar);
         p.parse(input{:});
         vs.backRange   = p.Results.backRange;
         vs.overRange   = p.Results.overRange;
         vs.maskRange   = p.Results.maskRange;
         vs.alpha       = p.Results.alpha;
-        vs.backMap     = p.Results.backMap;
-        vs.overMap     = p.Results.overMap;
-        vs.aspectRatio = p.Results.aspectRatio;
+        % Colormap:
+        if ischar(p.Results.backMap)
+            try vs.backMap = eval([p.Results.backMap,'(256);']); vs.backMapName = p.Results.backMap;
+            catch
+                warning('OverlayVolume:Input:InvalidColormap','''%s'' is not a valid colormap! Switching to default.',p.Results.backMap)
+                vs.backMap = gray(256); vs.backMapName = 'gray'; 
+            end
+        else
+            vs.backMap     = p.Results.backMap;
+            vs.backMapName = 'custom';
+        end
+        if ischar(p.Results.overMap)
+            try vs.overMap = eval([p.Results.overMap,'(256);']); vs.overMapName = p.Results.overMap;
+            catch
+                warning('OverlayVolume:Input:InvalidColormap','''%s'' is not a valid colormap! Switching to default.',p.Results.overMap)
+                vs.overMap = hot(256); vs.overMapName = 'hot'; 
+            end
+        else
+            vs.overMap     = p.Results.overMap;
+            vs.overMapName = 'custom';
+        end
+        % rest:
+        vs.pixelSize   = p.Results.pixelSize;
+        temp = 1./vs.pixelSize; 
+        vs.aspectRatio = temp/min(temp);
         vs.figTitle    = p.Results.title;
         
-        ds.backVol = p.Results.backVol; if isinteger(ds.backVol), ds.backVol = double(ds.backVol); end
-        ds.overVol = p.Results.overVol; if isinteger(ds.overVol), ds.overVol = double(ds.overVol); end
+        ds.backVol = p.Results.backVol; 
+        if isinteger(ds.backVol), ds.backVol = double(ds.backVol); end
+        if ~isreal(ds.backVol), ds.backVol = real(ds.backVol); end
+        
+        a = size(p.Results.backVol);
+        b = [size(p.Results.overVol) 0 0 0];
+        if all(a(1:3)==b(1:3))
+            ds.overVol = p.Results.overVol; 
+            if isinteger(ds.overVol), ds.overVol = double(ds.overVol); end
+            if ~isreal(ds.overVol), ds.overVol = real(ds.overVol); end
+        elseif ~isempty(p.Results.overVol)
+            ds.overVol = [];
+            warning('OverlayVolume:Input:DifferentSizes','The overlay has a different size than the background, overlay ignored');
+        else
+            ds.overVol = [];
+        end
+        
         if isempty(vs.backRange), vs.backRange = getRange(ds.backVol); end
         if isempty(vs.overRange), vs.overRange = getRange(ds.overVol); end
         
@@ -399,7 +470,7 @@ resizeFigure;
     end
     function [type, position] = determineClickPosition(currentPoint,type)
         if nargin<2
-            if currentPoint(1)<=vs.menuWidth; % click in the menu
+            if currentPoint(1)<=vs.menuWidth % click in the menu
                 type = false;
                 position = currentPoint;
             else
@@ -425,7 +496,7 @@ resizeFigure;
     function mouseMove(varargin)
         % MOUSEMOVE is used to change the contrast and brightness
         % This function is only triggered when the user clicks and
-        % holds the right of middle mouse button.
+        % holds the right or middle mouse button.
         newMouse = get(hs.fig,'CurrentPoint');
         switch varargin{3}
             case 'back'
@@ -458,7 +529,7 @@ resizeFigure;
         vs.mousePoint = newMouse;
     end
     function mouseUp(varargin)
-        if vs.ROImode
+        if vs.ROImode && nargin==3
             X = vs.axDir(1,varargin{3});
             Y = vs.axDir(2,varargin{3});
             if X<Y
@@ -607,10 +678,10 @@ resizeFigure;
             y = vs.currentPoint(vs.axDir(2,ii));
             set(hs.subImgPointer(ii),'XData',[-10000,10000,NaN,x,x],'YData',[y,y,NaN,-10000,10000])
         end
-        if vs.numFrames(1)>1, frameStr = sprintf(' (%u)',vs.currentFrame(1)); else frameStr = ''; end
+        if vs.numFrames(1)>1, frameStr = sprintf(' (%u)',vs.currentFrame(1)); else, frameStr = ''; end
         set(hs.backMenu,'Title',sprintf('Background: %g%s',ds.backVol(vs.currentPoint(1),vs.currentPoint(2),vs.currentPoint(3),vs.currentFrame(1)),frameStr));
         if ~isempty(ds.overVol)
-           if vs.numFrames(2)>1, frameStr = sprintf(' (%u)',vs.currentFrame(2)); else frameStr = ''; end
+           if vs.numFrames(2)>1, frameStr = sprintf(' (%u)',vs.currentFrame(2)); else, frameStr = ''; end
            set(hs.overMenu,'Title',sprintf('Overlay: %g%s',ds.overVol(vs.currentPoint(1),vs.currentPoint(2),vs.currentPoint(3),vs.currentFrame(2)),frameStr));
         end
         set(hs.ctrlMenu,'Title',sprintf('Position (%u, %u, %u)',vs.currentPoint(1),vs.currentPoint(2),vs.currentPoint(3)));
@@ -640,7 +711,7 @@ resizeFigure;
             IMG1 = reshape(vs.backMap(IMG1,:),[size(IMG1,1),size(IMG1,2),3]); % Get the correct color from the colormap using the index calculated above
             
             % If present, create the overlay image including mask
-            if ~isempty(ds.overVol);
+            if ~isempty(ds.overVol)
                 if view==1
                     IMG2 = permute(ds.overVol(CP(1),:,:,CF(2)),[3 2 1]);
                 elseif view==2
@@ -666,7 +737,6 @@ resizeFigure;
                 IMG2(isnan(IMG2)) = 1;
                 IMG2 = reshape(vs.overMap(IMG2,:),[size(IMG2,1),size(IMG2,2),3]);
                 mask = repmat(mask,[1 1 3]); % repeat mask for R, G and B.
-                %IMG = IMG1*(1-obj.alpha) + mask.*IMG2*obj.alpha; % Combine background and overlay, using alpha and mask.
                 IMG = IMG1.* ((mask .* -vs.alpha) + 1) + mask.*IMG2*vs.alpha; % Combine background and overlay, using alpha and mask.
             else
                 IMG = IMG1;
@@ -758,8 +828,8 @@ resizeFigure;
         hroilist = findobj(hs.buttons,'Tag','ROIlist');
         allROI = get(hroilist,'String');
         n = length(allROI)-1;
-        colors = hsv2rgb([(0:1/n:1-1/n)',randi([40 100],[n,1])/100,randi([40 100],[n,1])/100]);
         if n
+            colors = hsv2rgb([(0:1/n:1-1/n)',randi([40 100],[n,1])/100,randi([40 100],[n,1])/100]);
             figure(999); cla; 
             set(gcf,'color','w','NumberTitle','off','Name','overlayVolume Plot');
             hold on;
@@ -771,8 +841,13 @@ resizeFigure;
                 else
                     data = reshape(ds.overVol(repmat(mask,[1 1 1 vs.numFrames(2)])),[],vs.numFrames(2));
                 end
-                m = mean(data);
-                s = std(data);
+                if size(data,1)>1
+                    m = mean(data);
+                    s = std(data);
+                else
+                    m = data;
+                    s = 0;
+                end
                 c = colors(ii,:);
                 lg(ii,1) = patch([1:length(m),length(m):-1:1],[m-s,m(end:-1:1)+s(end:-1:1)],'w','FaceColor',c,'EdgeColor','none','FaceAlpha',0.2);
                 lg(ii,2) = plot([1:length(m),NaN,1:length(m)],[m-s,NaN,m+s],'Color',c);
@@ -791,34 +866,55 @@ resizeFigure;
         hroilist = findobj(hs.buttons,'Tag','ROIlist');
         allROI = get(hroilist,'String');
         n = length(allROI)-1;
-        answer = 'No';
         if n>0
-            for ii = 1:n
-                thisROI = ds.ROIVol(:,:,:,ii);
-                thisName = checkName(allROI{ii+1},'export');
-                W = evalin('base','whos'); %Check if the variable already exists
-                if ismember(thisName,{W(:).name}) && ~strcmp(answer,'All');
-                    answer = questdlg(sprintf('The ROI (''%s'') already exists, overwrite?',thisName),'Overwrite?','Yes','No','All','Yes');
-                    if any(strcmp(answer,{'Yes','All'}))
-                        assignin('base',thisName,thisROI);
+            wSpace = evalin('base','whos'); %Check if the variable already exists
+            success = false;
+            while ~success
+                voiName = inputdlg('Name of the VOI variable:','Save as',1,{'VOIs'});
+                if ~isempty(voiName)
+                    voiName = matlab.lang.makeValidName(voiName{1});
+                    if ismember(voiName,{wSpace(:).name})
+                        answer = questdlg(sprintf('The VOI (''%s'') already exists in the workspace, overwrite?',voiName),'Overwrite?','Yes','No','Yes');
+                        if strcmp(answer,{'Yes'})
+                            success = true;
+                        end
                     else
-                        continue
+                        success = true;
                     end
-                else
-                    assignin('base',thisName,thisROI);
                 end
             end
+            assignin('base',voiName,ds.ROIVol);
         end
     end
     function loadROIs(varargin)
-    end
-    function name = checkName(name,what)
-        % Will be used to check the name of ROIs, variables, etc.
-        switch what
-            case 'import'
-                
-            case 'export'
-                name = strrep(name,' ','_');
+        variables = evalin('base','whos');
+        validsize = cellfun(@(x) (numel(x)==3 || numel(x)==4) && ...
+            all(x(1:3)==vs.volumeSize),{variables.size});
+        validclass = cellfun(@(x) strcmp(x,'logical'),{variables.class}); 
+        valid = validsize & validclass;
+        if any(valid)
+            [ix,success] = listdlg('PromptString','Select a variable:',...
+                'SelectionMode','multiple','ListString',{variables(valid).name});
+            if success
+                valid = find(valid);
+                for ii = 1:length(ix)
+                    temp = evalin('base',variables(valid(ix(ii))).name);
+                    hroilist = findobj(hs.buttons,'Tag','ROIlist');
+                    allROI = get(hroilist,'String');
+                    n = length(allROI)-1; nNew = size(temp,4);
+                    v = vs.volumeSize;
+                    ds.ROIVol(1:v(1),1:v(2),1:v(3),n+1:n+nNew) = temp;
+                    allROI(n+2:n+nNew+1) = {''};
+                    
+                    num = cell2mat(cellfun(@(x) sscanf(x,'ROI %i'),allROI(2:end),'UniformOutput',false));
+                    num = setdiff(1:max(num)+nNew,num); num = [sort(num) 1:nNew];
+                    for jj = 1:nNew
+                        allROI{n+1+jj} = sprintf('ROI %u',num(jj));
+                    end
+                    set(hroilist,'String',allROI,'Value',n+1+nNew);
+                    roiSelect(hroilist);
+                end
+            end
         end
     end
     function trashROIs(varargin)
